@@ -207,13 +207,13 @@
     <div id="status"></div>
   </div>
 
-  <script>
+  <script type="module">
+    import { upload } from 'https://unpkg.com/@vercel/blob@0.27.0/dist/client.js';
+
     const coverInput = document.getElementById('cover-input');
     const docInput = document.getElementById('doc-input');
     const coverPreview = document.getElementById('cover-preview');
     const status = document.getElementById('status');
-
-    let coverDataUrl = null;
 
     // Check current book
     fetch('/api/book')
@@ -238,8 +238,7 @@
         document.getElementById('cover-name').textContent = coverInput.files[0].name;
         const reader = new FileReader();
         reader.onload = (e) => {
-          coverDataUrl = e.target.result;
-          coverPreview.src = coverDataUrl;
+          coverPreview.src = e.target.result;
           coverPreview.style.display = 'block';
         };
         reader.readAsDataURL(coverInput.files[0]);
@@ -256,6 +255,7 @@
       const password = document.getElementById('password').value;
       const title = document.getElementById('title').value.trim();
       const docFile = docInput.files[0];
+      const coverFile = coverInput.files[0] || null;
 
       if (!password) return showStatus('Enter the admin password', 'error');
       if (!title) return showStatus('Enter a book title', 'error');
@@ -263,15 +263,31 @@
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
-      showStatus('Reading file...', 'loading');
 
       try {
-        // Read doc file as base64
-        const docBase64 = await fileToBase64(docFile);
+        // Upload PDF directly to Vercel Blob
+        showStatus('Uploading document...', 'loading');
+        const pdfBlob = await upload(`book-viewer/${docFile.name}`, docFile, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+          clientPayload: JSON.stringify({ password }),
+        });
 
-        showStatus('Uploading...', 'loading');
+        // Upload cover if provided
+        let coverUrl = null;
+        if (coverFile) {
+          showStatus('Uploading cover...', 'loading');
+          const coverBlob = await upload(`book-viewer/cover-${coverFile.name}`, coverFile, {
+            access: 'public',
+            handleUploadUrl: '/api/upload',
+            clientPayload: JSON.stringify({ password }),
+          });
+          coverUrl = coverBlob.url;
+        }
 
-        const res = await fetch('/api/upload', {
+        // Save metadata
+        showStatus('Saving...', 'loading');
+        const metaRes = await fetch('/api/save-meta', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -279,16 +295,15 @@
           },
           body: JSON.stringify({
             title,
-            pdfData: docBase64,
-            pdfName: docFile.name,
-            coverData: coverDataUrl || null,
+            pdfUrl: pdfBlob.url,
+            coverUrl,
           }),
         });
 
-        const data = await res.json();
+        const metaData = await metaRes.json();
 
-        if (!res.ok) {
-          showStatus(data.error || 'Upload failed', 'error');
+        if (!metaRes.ok) {
+          showStatus(metaData.error || 'Failed to save metadata', 'error');
         } else {
           showStatus('Book uploaded successfully! View it at /', 'success');
         }
@@ -298,19 +313,6 @@
         btn.disabled = false;
       }
     });
-
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          // Strip the data URL prefix to get pure base64
-          const base64 = reader.result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
 
     function showStatus(msg, type) {
       status.textContent = msg;
