@@ -249,47 +249,24 @@
       }
     });
 
-    // Upload a file to Vercel Blob via our API (client upload protocol)
-    async function uploadToBlob(pathname, file, password) {
-      // Step 1: Get a client token from our API
-      const tokenRes = await fetch('/api/upload', {
+    // Upload a file via our API (server-side put to Vercel Blob)
+    async function uploadFile(filename, file, password) {
+      const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'blob.generate-client-token',
-          payload: {
-            pathname,
-            callbackUrl: window.location.origin + '/api/upload',
-            clientPayload: JSON.stringify({ password }),
-            multipart: false,
-          },
-        }),
-      });
-
-      if (!tokenRes.ok) {
-        const err = await tokenRes.json();
-        throw new Error(err.error || 'Failed to get upload token');
-      }
-
-      const { clientToken } = await tokenRes.json();
-
-      // Step 2: Upload directly to Vercel Blob using the token
-      const uploadRes = await fetch(`https://blob.vercel-storage.com/${pathname}`, {
-        method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${clientToken}`,
-          'x-api-version': '7',
-          'x-content-type': file.type,
-          'x-cache-control-max-age': '31536000',
+          'X-Admin-Password': password,
+          'X-File-Name': filename,
+          'X-Content-Type': file.type,
         },
         body: file,
       });
 
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload file to storage');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error || 'Upload failed');
       }
 
-      return await uploadRes.json();
+      return await res.json();
     }
 
     document.getElementById('submit-btn').addEventListener('click', async () => {
@@ -308,14 +285,14 @@
       try {
         // Upload PDF
         showStatus('Uploading document...', 'loading');
-        const pdfBlob = await uploadToBlob(`book-viewer/${docFile.name}`, docFile, password);
+        const pdfResult = await uploadFile(docFile.name, docFile, password);
 
         // Upload cover if provided
         let coverUrl = null;
         if (coverFile) {
           showStatus('Uploading cover...', 'loading');
-          const coverBlob = await uploadToBlob(`book-viewer/cover-${coverFile.name}`, coverFile, password);
-          coverUrl = coverBlob.url;
+          const coverResult = await uploadFile('cover-' + coverFile.name, coverFile, password);
+          coverUrl = coverResult.url;
         }
 
         // Save metadata
@@ -328,7 +305,7 @@
           },
           body: JSON.stringify({
             title,
-            pdfUrl: pdfBlob.url,
+            pdfUrl: pdfResult.url,
             coverUrl,
           }),
         });
