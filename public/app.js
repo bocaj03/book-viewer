@@ -188,14 +188,51 @@ function buildEpubBook(chapters, title) {
   window._turnConfig = { pageW, pageH, mobile };
 }
 
+// Flatten nested HTML into top-level block elements for pagination
+function flattenToBlocks(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  const blocks = [];
+  const blockTags = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DIV', 'BLOCKQUOTE', 'UL', 'OL', 'HR', 'PRE', 'TABLE', 'FIGURE']);
+
+  function walk(node) {
+    for (const child of Array.from(node.children)) {
+      if (blockTags.has(child.tagName)) {
+        // Check if this block contains nested blocks (like a wrapper div)
+        const hasNestedBlocks = Array.from(child.children).some(c => blockTags.has(c.tagName));
+        if (hasNestedBlocks && child.tagName === 'DIV') {
+          // Unwrap: recurse into children
+          walk(child);
+        } else {
+          blocks.push(child.outerHTML);
+        }
+      } else if (child.tagName === 'IMG') {
+        // Treat standalone images as blocks
+        blocks.push(child.outerHTML);
+      }
+    }
+  }
+
+  walk(temp);
+
+  // If nothing was extracted (e.g., plain text nodes), wrap in <p> tags
+  if (blocks.length === 0 && temp.textContent.trim()) {
+    blocks.push('<p>' + temp.innerHTML + '</p>');
+  }
+
+  return blocks;
+}
+
 // Paginate EPUB chapters into fixed-height pages
 function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
 
-  // Create a hidden measuring container
+  // Create a hidden measuring container matching the page text style
   const measurer = document.createElement('div');
+  measurer.className = 'page-text-content';
   measurer.style.cssText = `
-    position: absolute; visibility: hidden;
+    position: absolute; visibility: hidden; overflow: hidden;
     width: ${width}px;
     font-size: ${fontSize}px;
     line-height: 1.7;
@@ -207,47 +244,50 @@ function paginateChapters(chapters, width, height, fontSize) {
   for (let ci = 0; ci < chapters.length; ci++) {
     const chapter = chapters[ci];
 
-    // Parse chapter HTML into elements
-    const temp = document.createElement('div');
-    temp.innerHTML = chapter.html;
-    const elements = Array.from(temp.children);
-
-    if (elements.length === 0 && temp.textContent.trim()) {
-      // Plain text, wrap in <p>
-      elements.push(document.createElement('p'));
-      elements[0].textContent = temp.textContent;
-    }
+    // Flatten chapter HTML into individual block elements
+    const blocks = flattenToBlocks(chapter.html);
 
     let currentPageHTML = '';
     let currentHeight = 0;
-    let isFirstPageOfChapter = true;
 
-    // If not the first chapter and there are existing pages,
-    // make sure this chapter starts on a new page
+    // Each chapter starts on a new page
+    // If not the first chapter, add blank page if needed so chapter starts on right page
     if (ci > 0 && pages.length > 0) {
-      // Add a blank page if needed so chapter starts on right (odd) page
       if (pages.length % 2 !== 0) {
-        pages.push({ html: '', chapterStart: false });
+        pages.push({ html: '' });
       }
     }
 
-    for (const el of elements) {
-      measurer.innerHTML = el.outerHTML;
+    for (let bi = 0; bi < blocks.length; bi++) {
+      const blockHTML = blocks[bi];
+
+      measurer.innerHTML = blockHTML;
       const elHeight = measurer.offsetHeight;
 
-      if (currentHeight + elHeight > height && currentPageHTML) {
-        pages.push({ html: currentPageHTML, chapterStart: isFirstPageOfChapter });
-        currentPageHTML = '';
-        currentHeight = 0;
-        isFirstPageOfChapter = false;
+      // If this single element is taller than a page, add what we have and put it on its own page
+      if (elHeight > height) {
+        if (currentPageHTML) {
+          pages.push({ html: currentPageHTML });
+          currentPageHTML = '';
+          currentHeight = 0;
+        }
+        pages.push({ html: blockHTML });
+        continue;
       }
 
-      currentPageHTML += el.outerHTML;
+      // Would this element overflow the current page?
+      if (currentHeight + elHeight > height && currentPageHTML) {
+        pages.push({ html: currentPageHTML });
+        currentPageHTML = '';
+        currentHeight = 0;
+      }
+
+      currentPageHTML += blockHTML;
       currentHeight += elHeight;
     }
 
     if (currentPageHTML) {
-      pages.push({ html: currentPageHTML, chapterStart: isFirstPageOfChapter });
+      pages.push({ html: currentPageHTML });
     }
   }
 
@@ -362,7 +402,13 @@ document.addEventListener('keydown', (e) => {
 function changeFontSize(delta) {
   if (bookFormat !== 'epub' || !epubChapters) return;
 
-  const wasPage = bookActive ? jQuery('#flipbook').turn('page') : 1;
+  let wasPage = 1;
+  if (bookActive) {
+    try { wasPage = jQuery('#flipbook').turn('page'); } catch(e) {}
+    try { jQuery('#flipbook').turn('destroy'); } catch(e) {}
+    bookActive = false;
+  }
+
   currentFontSize = Math.max(10, Math.min(28, currentFontSize + delta));
 
   const label = $('#font-size-label');
@@ -372,16 +418,15 @@ function changeFontSize(delta) {
   const title = coverTitle.textContent;
   buildEpubBook(epubChapters, title);
 
-  // Re-init turn.js if book was open
-  if (!closedBookOverlay.classList.contains('hidden')) return;
-  flipbookArea.classList.remove('hidden');
-  controlsBar.classList.remove('hidden');
+  // Re-init turn.js
   requestAnimationFrame(() => {
     initTurnJs();
     // Try to stay near the same page
-    const newTotal = jQuery('#flipbook').turn('pages');
-    const targetPage = Math.min(wasPage, newTotal);
-    jQuery('#flipbook').turn('page', targetPage);
+    try {
+      const newTotal = jQuery('#flipbook').turn('pages');
+      const targetPage = Math.min(wasPage, newTotal);
+      if (targetPage > 1) jQuery('#flipbook').turn('page', targetPage);
+    } catch(e) {}
   });
 }
 

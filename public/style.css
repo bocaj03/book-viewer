@@ -330,26 +330,29 @@ body {
 }
 
 #flipbook .page .page-text-content h1 {
-  font-size: 1.6em;
+  font-size: 1.4em;
   font-weight: 600;
   color: #3d2b1a;
-  margin: 0.8em 0 0.5em 0;
+  margin: 0.4em 0 0.5em 0;
   line-height: 1.3;
+  text-align: center;
 }
 
 #flipbook .page .page-text-content h2 {
-  font-size: 1.3em;
+  font-size: 1.2em;
   font-weight: 600;
   color: #3d2b1a;
-  margin: 0.6em 0 0.4em 0;
+  margin: 0.3em 0 0.4em 0;
   line-height: 1.3;
+  text-align: center;
 }
 
 #flipbook .page .page-text-content h3 {
   font-size: 1.1em;
   font-weight: 600;
   color: #3d2b1a;
-  margin: 0.4em 0 0.3em 0;
+  margin: 0.3em 0 0.3em 0;
+  text-align: center;
 }
 
 #flipbook .page .page-text-content p {
@@ -379,6 +382,23 @@ body {
   border-left: 2px solid #c4a96a;
   color: #5a4e3e;
   font-style: italic;
+}
+
+/* Chapter ornament images — full width */
+#flipbook .page .page-text-content div[style*="text-align"] img,
+#flipbook .page .page-text-content img {
+  display: block;
+  width: 80%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5em auto;
+}
+
+/* Center the ornament wrapper divs */
+#flipbook .page .page-text-content div[style*="text-align:center"],
+#flipbook .page .page-text-content div[style*="text-align: center"] {
+  text-align: center;
+  margin: 0.8em 0;
 }
 
 /* Controls bar */

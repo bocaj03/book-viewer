@@ -404,9 +404,19 @@
           }
         });
 
-        // Get chapter title from first heading
+        // Format chapter titles: split "Chapter X: Title" into two centered lines
         const heading = body.querySelector('h1, h2, h3');
-        const chapterTitle = heading ? heading.textContent.trim() : '';
+        let chapterTitle = '';
+        if (heading) {
+          const text = heading.textContent.trim();
+          chapterTitle = text;
+          // Match patterns like "Chapter One: The Title" or "Chapter 1: The Title"
+          const match = text.match(/^(Chapter\s+\S+)\s*[:—–-]\s*(.+)$/i);
+          if (match) {
+            heading.innerHTML = match[1] + '<br/>' + match[2];
+          }
+          heading.style.textAlign = 'center';
+        }
 
         chapters.push({
           title: chapterTitle,
