@@ -1,6 +1,5 @@
 const { put } = require('@vercel/blob');
 
-// Disable body parsing so we can read the raw file stream
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -21,15 +20,25 @@ module.exports = async function handler(req, res) {
   const contentType = req.headers['x-content-type'] || 'application/octet-stream';
 
   try {
-    // Read raw body
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
+    // Vercel provides req.body as a Buffer for non-JSON content types
+    let body = req.body;
+
+    // If body is a string (base64), convert to Buffer
+    if (typeof body === 'string') {
+      body = Buffer.from(body, 'base64');
     }
-    const buffer = Buffer.concat(chunks);
+
+    // If body isn't a Buffer yet, read from stream
+    if (!Buffer.isBuffer(body)) {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      body = Buffer.concat(chunks);
+    }
 
     // Upload to Vercel Blob using put() which works with OIDC
-    const blob = await put(`book-viewer/${filename}`, buffer, {
+    const blob = await put(`book-viewer/${filename}`, body, {
       access: 'public',
       contentType,
     });
@@ -39,10 +48,4 @@ module.exports = async function handler(req, res) {
     console.error('Upload error:', err);
     return res.status(500).json({ error: 'Upload failed: ' + err.message });
   }
-};
-
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
 };
