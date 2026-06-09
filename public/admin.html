@@ -207,9 +207,7 @@
     <div id="status"></div>
   </div>
 
-  <script type="module">
-    import { upload } from 'https://unpkg.com/@vercel/blob@0.27.0/dist/client.js';
-
+  <script>
     const coverInput = document.getElementById('cover-input');
     const docInput = document.getElementById('doc-input');
     const coverPreview = document.getElementById('cover-preview');
@@ -251,6 +249,49 @@
       }
     });
 
+    // Upload a file to Vercel Blob via our API (client upload protocol)
+    async function uploadToBlob(pathname, file, password) {
+      // Step 1: Get a client token from our API
+      const tokenRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'blob.generate-client-token',
+          payload: {
+            pathname,
+            callbackUrl: window.location.origin + '/api/upload',
+            clientPayload: JSON.stringify({ password }),
+            multipart: false,
+          },
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json();
+        throw new Error(err.error || 'Failed to get upload token');
+      }
+
+      const { clientToken } = await tokenRes.json();
+
+      // Step 2: Upload directly to Vercel Blob using the token
+      const uploadRes = await fetch(`https://blob.vercel-storage.com/${pathname}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${clientToken}`,
+          'x-api-version': '7',
+          'x-content-type': file.type,
+          'x-cache-control-max-age': '31536000',
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload file to storage');
+      }
+
+      return await uploadRes.json();
+    }
+
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
       const title = document.getElementById('title').value.trim();
@@ -265,23 +306,15 @@
       btn.disabled = true;
 
       try {
-        // Upload PDF directly to Vercel Blob
+        // Upload PDF
         showStatus('Uploading document...', 'loading');
-        const pdfBlob = await upload(`book-viewer/${docFile.name}`, docFile, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-          clientPayload: JSON.stringify({ password }),
-        });
+        const pdfBlob = await uploadToBlob(`book-viewer/${docFile.name}`, docFile, password);
 
         // Upload cover if provided
         let coverUrl = null;
         if (coverFile) {
           showStatus('Uploading cover...', 'loading');
-          const coverBlob = await upload(`book-viewer/cover-${coverFile.name}`, coverFile, {
-            access: 'public',
-            handleUploadUrl: '/api/upload',
-            clientPayload: JSON.stringify({ password }),
-          });
+          const coverBlob = await uploadToBlob(`book-viewer/cover-${coverFile.name}`, coverFile, password);
           coverUrl = coverBlob.url;
         }
 
