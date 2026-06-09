@@ -307,7 +307,7 @@
     }
 
     // ── EPUB processing ──
-    async function parseEPUB(file) {
+    async function parseEPUB(file, password) {
       showStatus('Parsing EPUB...', 'loading');
       const zip = await JSZip.loadAsync(file);
 
@@ -325,20 +325,57 @@
       const spineItems = opfDoc.querySelectorAll('spine itemref');
       const manifest = opfDoc.querySelectorAll('manifest item');
 
-      // Build manifest map: id -> href
+      // Build manifest map: id -> {href, mediaType}
       const manifestMap = {};
       manifest.forEach(item => {
-        manifestMap[item.getAttribute('id')] = item.getAttribute('href');
+        manifestMap[item.getAttribute('id')] = {
+          href: item.getAttribute('href'),
+          mediaType: item.getAttribute('media-type'),
+        };
       });
+
+      // Extract and upload all images from the EPUB
+      // Map: original relative path -> uploaded Blob URL
+      const imageUrlMap = {};
+      showStatus('Extracting images...', 'loading');
+
+      let imageCount = 0;
+      for (const [id, info] of Object.entries(manifestMap)) {
+        if (!info.mediaType || !info.mediaType.startsWith('image/')) continue;
+
+        const imagePath = opfDir + info.href;
+        const imageFile = zip.file(imagePath);
+        if (!imageFile) continue;
+
+        imageCount++;
+        showStatus(`Uploading image ${imageCount}...`, 'loading');
+
+        const imageData = await imageFile.async('blob');
+        const ext = info.href.split('.').pop() || 'png';
+        const filename = `img-${String(imageCount).padStart(3, '0')}.${ext}`;
+
+        const result = await uploadFile(filename, imageData, password, info.mediaType);
+
+        // Map all possible ways the image might be referenced
+        imageUrlMap[info.href] = result.url;
+        imageUrlMap['../' + info.href] = result.url;
+        // Also map just the filename
+        const basename = info.href.split('/').pop();
+        imageUrlMap[basename] = result.url;
+        imageUrlMap['../images/' + basename] = result.url;
+        imageUrlMap['images/' + basename] = result.url;
+      }
 
       // Extract chapters in spine order
       const chapters = [];
+      showStatus('Processing chapters...', 'loading');
+
       for (const itemRef of spineItems) {
         const idref = itemRef.getAttribute('idref');
-        const href = manifestMap[idref];
-        if (!href) continue;
+        const info = manifestMap[idref];
+        if (!info) continue;
 
-        const filePath = opfDir + href;
+        const filePath = opfDir + info.href;
         const zipFile = zip.file(filePath);
         if (!zipFile) continue;
 
@@ -348,6 +385,24 @@
         const doc = new DOMParser().parseFromString(html, 'application/xhtml+xml');
         const body = doc.querySelector('body');
         if (!body || !body.innerHTML.trim()) continue;
+
+        // Rewrite image src attributes to point to uploaded Blob URLs
+        const images = body.querySelectorAll('img');
+        images.forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && imageUrlMap[src]) {
+            img.setAttribute('src', imageUrlMap[src]);
+          } else if (src) {
+            // Try matching just the filename
+            const fname = src.split('/').pop();
+            for (const [key, url] of Object.entries(imageUrlMap)) {
+              if (key.endsWith(fname)) {
+                img.setAttribute('src', url);
+                break;
+              }
+            }
+          }
+        });
 
         // Get chapter title from first heading
         const heading = body.querySelector('h1, h2, h3');
@@ -390,7 +445,7 @@
 
         if (isEpub) {
           // ── EPUB flow ──
-          const chapters = await parseEPUB(docFile);
+          const chapters = await parseEPUB(docFile, password);
 
           if (chapters.length === 0) {
             showStatus('No chapters found in EPUB', 'error');
