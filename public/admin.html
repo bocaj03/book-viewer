@@ -163,6 +163,12 @@
     .current-book a:hover {
       text-decoration: underline;
     }
+
+    .format-note {
+      font-size: 12px;
+      color: #6a5e4e;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -195,12 +201,13 @@
     </div>
 
     <div class="field">
-      <label>PDF or Word Document</label>
+      <label>Book File</label>
       <div class="file-field">
         <button class="file-btn" id="doc-btn">Choose File</button>
         <span class="file-name" id="doc-name">No file chosen</span>
-        <input type="file" id="doc-input" accept=".pdf,.doc,.docx" />
+        <input type="file" id="doc-input" accept=".epub,.pdf" />
       </div>
+      <p class="format-note">EPUB = resizable text with font controls. PDF = fixed image pages.</p>
     </div>
 
     <button id="submit-btn">Upload Book</button>
@@ -208,6 +215,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const coverInput = document.getElementById('cover-input');
@@ -223,6 +231,7 @@
           document.getElementById('current-book').style.display = 'block';
           document.getElementById('current-info').innerHTML =
             `<strong>${data.title}</strong><br>` +
+            `Format: ${data.format || 'pdf'}<br>` +
             `Uploaded: ${new Date(data.uploadedAt).toLocaleDateString()}<br>` +
             `<a href="/" target="_blank">View book</a>`;
           document.getElementById('title').value = data.title;
@@ -251,16 +260,16 @@
       }
     });
 
-    // Upload a file via our API (server-side put to Vercel Blob)
-    async function uploadFile(filename, file, password) {
+    // Upload raw data to our API
+    async function uploadFile(filename, data, password, contentType) {
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: {
           'X-Admin-Password': password,
           'X-File-Name': filename,
-          'X-Content-Type': file.type,
+          'X-Content-Type': contentType || 'application/octet-stream',
         },
-        body: file,
+        body: data,
       });
 
       if (!res.ok) {
@@ -271,7 +280,7 @@
       return await res.json();
     }
 
-    // Render a PDF to page images using PDF.js
+    // ── PDF processing ──
     async function renderPDFPages(file) {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -290,7 +299,6 @@
 
         await page.render({ canvasContext: ctx, viewport }).promise;
 
-        // Convert to blob for upload
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.90));
         pages.push(blob);
       }
@@ -298,6 +306,63 @@
       return pages;
     }
 
+    // ── EPUB processing ──
+    async function parseEPUB(file) {
+      showStatus('Parsing EPUB...', 'loading');
+      const zip = await JSZip.loadAsync(file);
+
+      // Find the container.xml to locate content.opf
+      const containerXml = await zip.file('META-INF/container.xml').async('string');
+      const containerDoc = new DOMParser().parseFromString(containerXml, 'application/xml');
+      const opfPath = containerDoc.querySelector('rootfile').getAttribute('full-path');
+      const opfDir = opfPath.substring(0, opfPath.lastIndexOf('/') + 1);
+
+      // Parse content.opf
+      const opfXml = await zip.file(opfPath).async('string');
+      const opfDoc = new DOMParser().parseFromString(opfXml, 'application/xml');
+
+      // Get spine order (reading order)
+      const spineItems = opfDoc.querySelectorAll('spine itemref');
+      const manifest = opfDoc.querySelectorAll('manifest item');
+
+      // Build manifest map: id -> href
+      const manifestMap = {};
+      manifest.forEach(item => {
+        manifestMap[item.getAttribute('id')] = item.getAttribute('href');
+      });
+
+      // Extract chapters in spine order
+      const chapters = [];
+      for (const itemRef of spineItems) {
+        const idref = itemRef.getAttribute('idref');
+        const href = manifestMap[idref];
+        if (!href) continue;
+
+        const filePath = opfDir + href;
+        const zipFile = zip.file(filePath);
+        if (!zipFile) continue;
+
+        const html = await zipFile.async('string');
+
+        // Parse the XHTML and extract body content
+        const doc = new DOMParser().parseFromString(html, 'application/xhtml+xml');
+        const body = doc.querySelector('body');
+        if (!body || !body.innerHTML.trim()) continue;
+
+        // Get chapter title from first heading
+        const heading = body.querySelector('h1, h2, h3');
+        const chapterTitle = heading ? heading.textContent.trim() : '';
+
+        chapters.push({
+          title: chapterTitle,
+          html: body.innerHTML,
+        });
+      }
+
+      return chapters;
+    }
+
+    // ── Upload handler ──
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
       const title = document.getElementById('title').value.trim();
@@ -306,52 +371,95 @@
 
       if (!password) return showStatus('Enter the admin password', 'error');
       if (!title) return showStatus('Enter a book title', 'error');
-      if (!docFile) return showStatus('Choose a PDF or Word document', 'error');
+      if (!docFile) return showStatus('Choose a book file', 'error');
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
 
+      const isEpub = docFile.name.toLowerCase().endsWith('.epub');
+
       try {
-        // Step 1: Render PDF pages client-side
-        const pageBlobs = await renderPDFPages(docFile);
-
-        // Step 2: Upload each page image
-        const pageUrls = [];
-        for (let i = 0; i < pageBlobs.length; i++) {
-          showStatus(`Uploading page ${i + 1} of ${pageBlobs.length}...`, 'loading');
-          const result = await uploadFile(`page-${String(i + 1).padStart(4, '0')}.jpg`, pageBlobs[i], password);
-          pageUrls.push(result.url);
-        }
-
-        // Step 3: Upload cover if provided
         let coverUrl = null;
+
+        // Upload cover if provided
         if (coverFile) {
           showStatus('Uploading cover...', 'loading');
-          const coverResult = await uploadFile('cover-' + coverFile.name, coverFile, password);
+          const coverResult = await uploadFile('cover-' + coverFile.name, coverFile, password, coverFile.type);
           coverUrl = coverResult.url;
         }
 
-        // Step 4: Save metadata with page URLs
-        showStatus('Saving...', 'loading');
-        const metaRes = await fetch('/api/save-meta', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Password': password,
-          },
-          body: JSON.stringify({
-            title,
-            pageUrls,
-            coverUrl,
-          }),
-        });
+        if (isEpub) {
+          // ── EPUB flow ──
+          const chapters = await parseEPUB(docFile);
 
-        const metaData = await metaRes.json();
+          if (chapters.length === 0) {
+            showStatus('No chapters found in EPUB', 'error');
+            btn.disabled = false;
+            return;
+          }
 
-        if (!metaRes.ok) {
-          showStatus(metaData.error || 'Failed to save metadata', 'error');
+          // Upload chapter data as a single JSON blob
+          showStatus('Uploading chapters...', 'loading');
+          const chaptersJson = JSON.stringify(chapters);
+          const chaptersBlob = new Blob([chaptersJson], { type: 'application/json' });
+          const chaptersResult = await uploadFile('chapters.json', chaptersBlob, password, 'application/json');
+
+          // Save metadata
+          showStatus('Saving...', 'loading');
+          const metaRes = await fetch('/api/save-meta', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Password': password,
+            },
+            body: JSON.stringify({
+              title,
+              format: 'epub',
+              chaptersUrl: chaptersResult.url,
+              chapterCount: chapters.length,
+              coverUrl,
+            }),
+          });
+
+          const metaData = await metaRes.json();
+          if (!metaRes.ok) {
+            showStatus(metaData.error || 'Failed to save metadata', 'error');
+          } else {
+            showStatus(`Book uploaded! ${chapters.length} chapters. View it at /`, 'success');
+          }
+
         } else {
-          showStatus(`Book uploaded successfully! ${pageUrls.length} pages. View it at /`, 'success');
+          // ── PDF flow ──
+          const pageBlobs = await renderPDFPages(docFile);
+
+          const pageUrls = [];
+          for (let i = 0; i < pageBlobs.length; i++) {
+            showStatus(`Uploading page ${i + 1} of ${pageBlobs.length}...`, 'loading');
+            const result = await uploadFile(`page-${String(i + 1).padStart(4, '0')}.jpg`, pageBlobs[i], password, 'image/jpeg');
+            pageUrls.push(result.url);
+          }
+
+          showStatus('Saving...', 'loading');
+          const metaRes = await fetch('/api/save-meta', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Password': password,
+            },
+            body: JSON.stringify({
+              title,
+              format: 'pdf',
+              pageUrls,
+              coverUrl,
+            }),
+          });
+
+          const metaData = await metaRes.json();
+          if (!metaRes.ok) {
+            showStatus(metaData.error || 'Failed to save metadata', 'error');
+          } else {
+            showStatus(`Book uploaded! ${pageUrls.length} pages. View it at /`, 'success');
+          }
         }
       } catch (err) {
         showStatus('Error: ' + err.message, 'error');

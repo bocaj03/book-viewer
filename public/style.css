@@ -318,6 +318,69 @@ body {
   right: 20px;
 }
 
+/* EPUB text content */
+#flipbook .page .page-text-content {
+  padding: 36px;
+  line-height: 1.7;
+  color: #2c2420;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+}
+
+#flipbook .page .page-text-content h1 {
+  font-size: 1.6em;
+  font-weight: 600;
+  color: #3d2b1a;
+  margin: 0.8em 0 0.5em 0;
+  line-height: 1.3;
+}
+
+#flipbook .page .page-text-content h2 {
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #3d2b1a;
+  margin: 0.6em 0 0.4em 0;
+  line-height: 1.3;
+}
+
+#flipbook .page .page-text-content h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #3d2b1a;
+  margin: 0.4em 0 0.3em 0;
+}
+
+#flipbook .page .page-text-content p {
+  margin-bottom: 0.6em;
+  text-align: justify;
+  text-indent: 1.5em;
+}
+
+#flipbook .page .page-text-content p:first-child,
+#flipbook .page .page-text-content h1 + p,
+#flipbook .page .page-text-content h2 + p,
+#flipbook .page .page-text-content h3 + p {
+  text-indent: 0;
+}
+
+#flipbook .page .page-text-content em {
+  font-style: italic;
+}
+
+#flipbook .page .page-text-content strong {
+  font-weight: 700;
+}
+
+#flipbook .page .page-text-content blockquote {
+  margin: 0.5em 0;
+  padding-left: 1.2em;
+  border-left: 2px solid #c4a96a;
+  color: #5a4e3e;
+  font-style: italic;
+}
+
 /* Controls bar */
 #controls-bar {
   flex-shrink: 0;
@@ -358,5 +421,41 @@ body {
   font-size: 14px;
   color: #8a7a62;
   min-width: 100px;
+  text-align: center;
+}
+
+/* Font size controls */
+#font-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+#font-controls button {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e0d6c8;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'Georgia', serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#font-controls button:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.2);
+}
+
+#font-size-label {
+  font-size: 12px;
+  color: #8a7a62;
+  min-width: 36px;
   text-align: center;
 }

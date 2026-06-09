@@ -16,10 +16,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { title, pageUrls, coverUrl } = req.body;
+    const body = req.body;
 
-    if (!title || !pageUrls || !pageUrls.length) {
-      return res.status(400).json({ error: 'Missing title or page URLs' });
+    if (!body.title) {
+      return res.status(400).json({ error: 'Missing title' });
     }
 
     // Delete old metadata
@@ -28,13 +28,20 @@ module.exports = async function handler(req, res) {
       await del(blob.url);
     }
 
-    // Save new metadata
+    // Save new metadata (supports both PDF and EPUB formats)
     const meta = {
-      title,
-      pageUrls,
-      coverUrl: coverUrl || null,
+      title: body.title,
+      format: body.format || 'pdf',
+      coverUrl: body.coverUrl || null,
       uploadedAt: new Date().toISOString(),
     };
+
+    if (body.format === 'epub') {
+      meta.chaptersUrl = body.chaptersUrl;
+      meta.chapterCount = body.chapterCount;
+    } else {
+      meta.pageUrls = body.pageUrls;
+    }
 
     await put('book-viewer/meta.json', JSON.stringify(meta), {
       access: 'public',
