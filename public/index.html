@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Book Viewer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Loading screen -->
+    <div id="loading-screen">
+      <div id="loading-content">
+        <div class="spinner"></div>
+        <p id="loading-text">Loading book...</p>
+      </div>
+    </div>
+
+    <!-- No book message -->
+    <div id="no-book-screen" class="hidden">
+      <p>No book has been uploaded yet.</p>
+    </div>
+
+    <!-- Book screen -->
+    <div id="book-screen" class="hidden">
+      <!-- Closed book -->
+      <div id="closed-book-overlay">
+        <div id="closed-book">
+          <div id="closed-book-inner">
+            <div id="book-spine"></div>
+            <div id="book-cover">
+              <img id="closed-cover-img" class="hidden" alt="Cover" />
+              <div id="cover-content">
+                <h2 id="cover-title">Document</h2>
+                <p id="cover-subtitle">Click to open</p>
+              </div>
+            </div>
+            <div id="book-pages-edge"></div>
+          </div>
+          <div id="book-shadow"></div>
+        </div>
+      </div>
+
+      <!-- Open book -->
+      <div id="flipbook-area" class="hidden">
+        <div id="flipbook"></div>
+      </div>
+
+      <div id="controls-bar" class="hidden">
+        <div id="controls">
+          <button id="prev-btn" title="Previous page">&larr;</button>
+          <span id="page-info">Cover</span>
+          <button id="next-btn" title="Next page">&rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/3/turn.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

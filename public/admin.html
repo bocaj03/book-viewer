@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Viewer — Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #2c2c2c;
+      color: #e0d6c8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .admin-panel {
+      width: 100%;
+      max-width: 500px;
+      padding: 40px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 400;
+      letter-spacing: 1px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .field {
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: #8a7a62;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid #5a4e3e;
+      border-radius: 8px;
+      color: #e0d6c8;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #c4a96a;
+    }
+
+    .file-field {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-field input[type="file"] {
+      display: none;
+    }
+
+    .file-btn {
+      background: #5a4e3e;
+      color: #e0d6c8;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .file-btn:hover {
+      background: #6d5e4a;
+    }
+
+    .file-name {
+      font-size: 13px;
+      color: #8a7a62;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .preview-img {
+      max-width: 100px;
+      max-height: 140px;
+      border-radius: 4px;
+      border: 1px solid #5a4e3e;
+      margin-top: 8px;
+    }
+
+    #submit-btn {
+      width: 100%;
+      padding: 14px;
+      background: #6b1414;
+      color: #c4a96a;
+      border: 1px solid rgba(196, 169, 106, 0.3);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 1px;
+    }
+
+    #submit-btn:hover {
+      background: #7a1818;
+    }
+
+    #submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 14px;
+      min-height: 20px;
+    }
+
+    .status-error { color: #d44; }
+    .status-success { color: #4a4; }
+    .status-loading { color: #c4a96a; }
+
+    .current-book {
+      margin-bottom: 32px;
+      padding: 16px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      border: 1px solid #5a4e3e;
+    }
+
+    .current-book h3 {
+      font-size: 14px;
+      font-weight: 400;
+      color: #8a7a62;
+      margin-bottom: 8px;
+    }
+
+    .current-book p {
+      font-size: 13px;
+      color: #e0d6c8;
+    }
+
+    .current-book a {
+      color: #c4a96a;
+      text-decoration: none;
+    }
+
+    .current-book a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-panel">
+    <h1>Book Viewer Admin</h1>
+
+    <div id="current-book" class="current-book" style="display:none">
+      <h3>Currently uploaded</h3>
+      <p id="current-info"></p>
+    </div>
+
+    <div class="field">
+      <label>Admin Password</label>
+      <input type="password" id="password" placeholder="Enter admin password" />
+    </div>
+
+    <div class="field">
+      <label>Book Title</label>
+      <input type="text" id="title" placeholder="e.g. The Black Orchid" />
+    </div>
+
+    <div class="field">
+      <label>Cover Image (optional)</label>
+      <div class="file-field">
+        <button class="file-btn" id="cover-btn">Choose Image</button>
+        <span class="file-name" id="cover-name">No file chosen</span>
+        <input type="file" id="cover-input" accept="image/*" />
+      </div>
+      <img id="cover-preview" class="preview-img" style="display:none" />
+    </div>
+
+    <div class="field">
+      <label>PDF or Word Document</label>
+      <div class="file-field">
+        <button class="file-btn" id="doc-btn">Choose File</button>
+        <span class="file-name" id="doc-name">No file chosen</span>
+        <input type="file" id="doc-input" accept=".pdf,.doc,.docx" />
+      </div>
+    </div>
+
+    <button id="submit-btn">Upload Book</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const coverInput = document.getElementById('cover-input');
+    const docInput = document.getElementById('doc-input');
+    const coverPreview = document.getElementById('cover-preview');
+    const status = document.getElementById('status');
+
+    let coverDataUrl = null;
+
+    // Check current book
+    fetch('/api/book')
+      .then(r => r.json())
+      .then(data => {
+        if (data.exists) {
+          document.getElementById('current-book').style.display = 'block';
+          document.getElementById('current-info').innerHTML =
+            `<strong>${data.title}</strong><br>` +
+            `Uploaded: ${new Date(data.uploadedAt).toLocaleDateString()}<br>` +
+            `<a href="/" target="_blank">View book</a>`;
+          document.getElementById('title').value = data.title;
+        }
+      })
+      .catch(() => {});
+
+    document.getElementById('cover-btn').addEventListener('click', () => coverInput.click());
+    document.getElementById('doc-btn').addEventListener('click', () => docInput.click());
+
+    coverInput.addEventListener('change', () => {
+      if (coverInput.files[0]) {
+        document.getElementById('cover-name').textContent = coverInput.files[0].name;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          coverDataUrl = e.target.result;
+          coverPreview.src = coverDataUrl;
+          coverPreview.style.display = 'block';
+        };
+        reader.readAsDataURL(coverInput.files[0]);
+      }
+    });
+
+    docInput.addEventListener('change', () => {
+      if (docInput.files[0]) {
+        document.getElementById('doc-name').textContent = docInput.files[0].name;
+      }
+    });
+
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      const password = document.getElementById('password').value;
+      const title = document.getElementById('title').value.trim();
+      const docFile = docInput.files[0];
+
+      if (!password) return showStatus('Enter the admin password', 'error');
+      if (!title) return showStatus('Enter a book title', 'error');
+      if (!docFile) return showStatus('Choose a PDF or Word document', 'error');
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      showStatus('Reading file...', 'loading');
+
+      try {
+        // Read doc file as base64
+        const docBase64 = await fileToBase64(docFile);
+
+        showStatus('Uploading...', 'loading');
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Password': password,
+          },
+          body: JSON.stringify({
+            title,
+            pdfData: docBase64,
+            pdfName: docFile.name,
+            coverData: coverDataUrl || null,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus(data.error || 'Upload failed', 'error');
+        } else {
+          showStatus('Book uploaded successfully! View it at /', 'success');
+        }
+      } catch (err) {
+        showStatus('Error: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Strip the data URL prefix to get pure base64
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function showStatus(msg, type) {
+      status.textContent = msg;
+      status.className = 'status-' + type;
+    }
+  </script>
+</body>
+</html>
