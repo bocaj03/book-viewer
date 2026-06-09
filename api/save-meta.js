@@ -16,10 +16,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { title, pdfUrl, coverUrl } = req.body;
+    const { title, pageUrls, coverUrl } = req.body;
 
-    if (!title || !pdfUrl) {
-      return res.status(400).json({ error: 'Missing title or PDF URL' });
+    if (!title || !pageUrls || !pageUrls.length) {
+      return res.status(400).json({ error: 'Missing title or page URLs' });
     }
 
     // Delete old metadata
@@ -31,7 +31,7 @@ module.exports = async function handler(req, res) {
     // Save new metadata
     const meta = {
       title,
-      pdfUrl,
+      pageUrls,
       coverUrl: coverUrl || null,
       uploadedAt: new Date().toISOString(),
     };

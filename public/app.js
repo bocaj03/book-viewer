@@ -1,5 +1,3 @@
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
 const $ = (sel) => document.querySelector(sel);
 const loadingScreen = $('#loading-screen');
 const noBookScreen = $('#no-book-screen');
@@ -40,47 +38,20 @@ async function init() {
 
     coverImageSrc = data.coverUrl || null;
     const title = data.title;
-    const pdfUrl = data.pdfUrl;
+    const pageUrls = data.pageUrls;
 
-    coverTitle.textContent = title;
-    loadingText.textContent = 'Loading document...';
-
-    // Fetch and render the PDF
-    const pages = await processPDFFromUrl(pdfUrl);
-
-    if (pages.length === 0) {
+    if (!pageUrls || pageUrls.length === 0) {
       showScreen('no-book');
       return;
     }
 
-    buildBook(pages, title);
+    coverTitle.textContent = title;
+    buildBook(pageUrls, title);
     showScreen('book');
   } catch (err) {
     console.error('Error loading book:', err);
     showScreen('no-book');
   }
-}
-
-async function processPDFFromUrl(url) {
-  const pdf = await pdfjsLib.getDocument(url).promise;
-  const pages = [];
-  const scale = 2;
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    loadingText.textContent = `Rendering page ${i} of ${pdf.numPages}...`;
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale });
-
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext('2d');
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    pages.push({ type: 'image', src: canvas.toDataURL('image/jpeg', 0.92) });
-  }
-
-  return pages;
 }
 
 function calcPageSize() {
@@ -113,7 +84,7 @@ function calcPageSize() {
   return { pageW, pageH };
 }
 
-function buildBook(pages, title) {
+function buildBook(pageUrls, title) {
   if (bookActive) {
     jQuery('#flipbook').turn('destroy');
     bookActive = false;
@@ -138,30 +109,23 @@ function buildBook(pages, title) {
   }
   flipbookEl.appendChild(frontCover);
 
-  // Content pages — PDF page 1 is the first interior page
-  totalContentPages = pages.length;
-  pages.forEach((page, i) => {
+  // Content pages — pre-rendered images from Blob storage
+  totalContentPages = pageUrls.length;
+  pageUrls.forEach((url, i) => {
     const div = makePageDiv('');
-    if (page.type === 'image') {
-      div.innerHTML = `<img class="page-image" src="${page.src}" alt="Page ${i + 1}" />`;
-    } else {
-      div.innerHTML = `<div class="page-content">${page.content}</div>`;
-    }
+    div.innerHTML = `<img class="page-image" src="${escapeAttr(url)}" alt="Page ${i + 1}" loading="lazy" />`;
     const side = (i % 2 === 0) ? 'left' : 'right';
     div.innerHTML += `<span class="page-number ${side}">${i + 1}</span>`;
     flipbookEl.appendChild(div);
   });
 
-  // Pad to even total (cover + content pages + back cover must be even for turn.js)
-  // Cover = 1 page, content = pages.length, back cover = 1
-  // Total = pages.length + 2. If odd, add a blank.
-  if ((pages.length + 2) % 2 !== 0) {
+  // Pad to even total
+  if ((pageUrls.length + 2) % 2 !== 0) {
     flipbookEl.appendChild(makePageDiv(''));
   }
 
   // Back cover (hard)
-  const backCover = makePageDiv('hard back-cover');
-  flipbookEl.appendChild(backCover);
+  flipbookEl.appendChild(makePageDiv('hard back-cover'));
 
   // Closed book cover
   if (coverImageSrc) {
@@ -212,7 +176,6 @@ function updatePageInfo(page) {
   } else if (page >= totalTurnPages) {
     pageInfo.textContent = 'Back cover';
   } else {
-    // Page 1 = cover, so content starts at page 2
     const contentPage = page - 1;
     pageInfo.textContent = `Page ${contentPage} of ${totalContentPages}`;
   }

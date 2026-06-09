@@ -207,7 +207,9 @@
     <div id="status"></div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const coverInput = document.getElementById('cover-input');
     const docInput = document.getElementById('doc-input');
     const coverPreview = document.getElementById('cover-preview');
@@ -269,6 +271,33 @@
       return await res.json();
     }
 
+    // Render a PDF to page images using PDF.js
+    async function renderPDFPages(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
+      const scale = 2;
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        showStatus(`Rendering page ${i} of ${pdf.numPages}...`, 'loading');
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // Convert to blob for upload
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.90));
+        pages.push(blob);
+      }
+
+      return pages;
+    }
+
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const password = document.getElementById('password').value;
       const title = document.getElementById('title').value.trim();
@@ -283,11 +312,18 @@
       btn.disabled = true;
 
       try {
-        // Upload PDF
-        showStatus('Uploading document...', 'loading');
-        const pdfResult = await uploadFile(docFile.name, docFile, password);
+        // Step 1: Render PDF pages client-side
+        const pageBlobs = await renderPDFPages(docFile);
 
-        // Upload cover if provided
+        // Step 2: Upload each page image
+        const pageUrls = [];
+        for (let i = 0; i < pageBlobs.length; i++) {
+          showStatus(`Uploading page ${i + 1} of ${pageBlobs.length}...`, 'loading');
+          const result = await uploadFile(`page-${String(i + 1).padStart(4, '0')}.jpg`, pageBlobs[i], password);
+          pageUrls.push(result.url);
+        }
+
+        // Step 3: Upload cover if provided
         let coverUrl = null;
         if (coverFile) {
           showStatus('Uploading cover...', 'loading');
@@ -295,7 +331,7 @@
           coverUrl = coverResult.url;
         }
 
-        // Save metadata
+        // Step 4: Save metadata with page URLs
         showStatus('Saving...', 'loading');
         const metaRes = await fetch('/api/save-meta', {
           method: 'POST',
@@ -305,7 +341,7 @@
           },
           body: JSON.stringify({
             title,
-            pdfUrl: pdfResult.url,
+            pageUrls,
             coverUrl,
           }),
         });
@@ -315,7 +351,7 @@
         if (!metaRes.ok) {
           showStatus(metaData.error || 'Failed to save metadata', 'error');
         } else {
-          showStatus('Book uploaded successfully! View it at /', 'success');
+          showStatus(`Book uploaded successfully! ${pageUrls.length} pages. View it at /`, 'success');
         }
       } catch (err) {
         showStatus('Error: ' + err.message, 'error');
