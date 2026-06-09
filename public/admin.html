@@ -387,13 +387,13 @@
         if (!body || !body.innerHTML.trim()) continue;
 
         // Rewrite image src attributes to point to uploaded Blob URLs
+        // Also strip inline width/height so our CSS can control sizing
         const images = body.querySelectorAll('img');
         images.forEach(img => {
           const src = img.getAttribute('src');
           if (src && imageUrlMap[src]) {
             img.setAttribute('src', imageUrlMap[src]);
           } else if (src) {
-            // Try matching just the filename
             const fname = src.split('/').pop();
             for (const [key, url] of Object.entries(imageUrlMap)) {
               if (key.endsWith(fname)) {
@@ -401,6 +401,22 @@
                 break;
               }
             }
+          }
+          // Remove inline sizing so CSS controls the display
+          img.removeAttribute('width');
+          img.removeAttribute('height');
+          img.style.removeProperty('width');
+          img.style.removeProperty('height');
+        });
+
+        // Also clean up parent divs with inline styles that constrain image size
+        body.querySelectorAll('div[style]').forEach(div => {
+          if (div.querySelector('img')) {
+            // Keep text-align but remove width constraints
+            const align = div.style.textAlign;
+            div.removeAttribute('style');
+            if (align) div.style.textAlign = align;
+            div.style.margin = '0.8em 0';
           }
         });
 

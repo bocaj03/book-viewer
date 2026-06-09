@@ -385,13 +385,12 @@ body {
 }
 
 /* Chapter ornament images — full width */
-#flipbook .page .page-text-content div[style*="text-align"] img,
 #flipbook .page .page-text-content img {
-  display: block;
-  width: 80%;
-  max-width: 100%;
-  height: auto;
-  margin: 0.5em auto;
+  display: block !important;
+  width: 90% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0.8em auto !important;
 }
 
 /* Center the ornament wrapper divs */

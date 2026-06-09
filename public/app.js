@@ -158,8 +158,10 @@ function buildEpubBook(chapters, title) {
   flipbookEl.appendChild(makeCoverPage(title));
 
   // Paginate chapters into pages
+  // Padding: 36px top/sides, extra 30px bottom for page numbers
   const contentPadding = 36;
-  const usableHeight = pageH - contentPadding * 2;
+  const bottomExtra = 30;
+  const usableHeight = pageH - contentPadding - contentPadding - bottomExtra;
   const allPages = paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, currentFontSize);
 
   totalContentPages = allPages.length;
@@ -402,7 +404,7 @@ document.addEventListener('keydown', (e) => {
 function changeFontSize(delta) {
   if (bookFormat !== 'epub' || !epubChapters) return;
 
-  let wasPage = 1;
+  let wasPage = 2; // default to first content page (page 1 is cover)
   if (bookActive) {
     try { wasPage = jQuery('#flipbook').turn('page'); } catch(e) {}
     try { jQuery('#flipbook').turn('destroy'); } catch(e) {}
@@ -418,16 +420,18 @@ function changeFontSize(delta) {
   const title = coverTitle.textContent;
   buildEpubBook(epubChapters, title);
 
-  // Re-init turn.js
-  requestAnimationFrame(() => {
+  // Re-init turn.js with a delay to ensure DOM is ready
+  setTimeout(() => {
     initTurnJs();
-    // Try to stay near the same page
-    try {
-      const newTotal = jQuery('#flipbook').turn('pages');
-      const targetPage = Math.min(wasPage, newTotal);
-      if (targetPage > 1) jQuery('#flipbook').turn('page', targetPage);
-    } catch(e) {}
-  });
+    // Navigate back to where the user was (or close to it)
+    setTimeout(() => {
+      try {
+        const newTotal = jQuery('#flipbook').turn('pages');
+        const targetPage = Math.max(2, Math.min(wasPage, newTotal));
+        jQuery('#flipbook').turn('page', targetPage);
+      } catch(e) {}
+    }, 100);
+  }, 50);
 }
 
 // Expose globally for inline handlers
