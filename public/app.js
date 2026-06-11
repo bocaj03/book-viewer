@@ -19,10 +19,8 @@ let coverImageSrc = null;
 let totalContentPages = 0;
 let bookFormat = 'pdf';
 let epubChapters = null;
-let currentFontSize = 16;
-
 const PAGE_RATIO = 6 / 9;
-const CONTROLS_HEIGHT = 100; // extra room for font controls
+const CONTROLS_HEIGHT = 70;
 
 function isMobile() {
   return window.innerWidth <= 768;
@@ -54,10 +52,6 @@ async function init() {
         showScreen('no-book');
         return;
       }
-
-      // Show font size controls
-      const fontControls = $('#font-controls');
-      if (fontControls) fontControls.classList.remove('hidden');
 
       await buildEpubBook(epubChapters, title);
     } else {
@@ -162,14 +156,15 @@ async function buildEpubBook(chapters, title) {
   const contentPadding = 36;
   const bottomExtra = 50;
   const usableHeight = pageH - contentPadding - contentPadding - bottomExtra;
-  const allPages = await paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, currentFontSize);
+  const fontSize = 16;
+  const allPages = await paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, fontSize);
 
   totalContentPages = allPages.length;
   allPages.forEach((page, i) => {
     const div = makePageDiv('');
     const content = document.createElement('div');
     content.className = 'page-text-content';
-    content.style.fontSize = currentFontSize + 'px';
+    content.style.fontSize = '16px';
     content.innerHTML = page.html;
     div.appendChild(content);
 
@@ -440,40 +435,6 @@ document.addEventListener('touchend', (e) => {
   if (dx < 0) jQuery('#flipbook').turn('next');
   else jQuery('#flipbook').turn('previous');
 }, { passive: true });
-
-// Font size controls (EPUB only)
-let fontSizeChanging = false;
-async function changeFontSize(delta) {
-  if (fontSizeChanging) return;
-  if (bookFormat !== 'epub' || !epubChapters) return;
-  fontSizeChanging = true;
-
-  let wasPage = 2; // default to first content page (page 1 is cover)
-  if (bookActive) {
-    try { wasPage = jQuery('#flipbook').turn('page'); } catch(e) {}
-    try { jQuery('#flipbook').turn('destroy'); } catch(e) {}
-    bookActive = false;
-  }
-
-  currentFontSize = Math.max(10, Math.min(28, currentFontSize + delta));
-
-  const label = $('#font-size-label');
-  if (label) label.textContent = currentFontSize + 'px';
-
-  // Rebuild the book with new font size
-  const title = coverTitle.textContent;
-  await buildEpubBook(epubChapters, title);
-
-  // Re-init turn.js and restore page position
-  requestAnimationFrame(() => {
-    const targetPage = Math.max(2, wasPage);
-    initTurnJs(targetPage);
-    fontSizeChanging = false;
-  });
-}
-
-// Expose globally for inline handlers
-window.changeFontSize = changeFontSize;
 
 function showScreen(screen) {
   loadingScreen.classList.toggle('hidden', screen !== 'loading');

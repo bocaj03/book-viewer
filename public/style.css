@@ -495,41 +495,6 @@ body {
   text-align: center;
 }
 
-/* Font size controls */
-#font-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-#font-controls button {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #e0d6c8;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: 'Georgia', serif;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#font-controls button:hover {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.2);
-}
-
-#font-size-label {
-  font-size: 12px;
-  color: #8a7a62;
-  min-width: 36px;
-  text-align: center;
-}
 
 /* Mobile */
 @media (max-width: 768px) {
@@ -542,12 +507,6 @@ body {
     width: 48px;
     height: 48px;
     font-size: 20px;
-  }
-
-  #font-controls button {
-    width: 40px;
-    height: 40px;
-    font-size: 16px;
   }
 
   #flipbook .page .page-text-content {
