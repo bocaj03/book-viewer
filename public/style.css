@@ -210,6 +210,27 @@ body {
 /* Turn.js book */
 #flipbook {
   box-shadow: 0 10px 50px rgba(0,0,0,0.6);
+  position: relative;
+}
+
+#flipbook::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  background: linear-gradient(to right,
+    rgba(0,0,0,0.15) 0%,
+    rgba(0,0,0,0.06) 25%,
+    rgba(0,0,0,0.0) 40%,
+    rgba(0,0,0,0.0) 60%,
+    rgba(0,0,0,0.06) 75%,
+    rgba(0,0,0,0.15) 100%
+  );
+  pointer-events: none;
+  z-index: 100;
 }
 
 #flipbook .page {
@@ -276,7 +297,7 @@ body {
 }
 
 #flipbook .page .page-content {
-  padding: 32px 28px;
+  padding: 32px 28px 48px;
   font-size: 13px;
   line-height: 1.7;
   color: #2c2420;
@@ -320,7 +341,7 @@ body {
 
 /* EPUB text content */
 #flipbook .page .page-text-content {
-  padding: 36px;
+  padding: 36px 36px 48px;
   line-height: 1.7;
   color: #2c2420;
   width: 100%;
