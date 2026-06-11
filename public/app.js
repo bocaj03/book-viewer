@@ -351,7 +351,6 @@ function initTurnJs(startPage) {
   const { pageW, pageH, mobile } = window._turnConfig;
 
   jQuery('#flipbook').turn({
-    page: startPage || 1,
     width: mobile ? pageW : pageW * 2,
     height: pageH,
     autoCenter: true,
@@ -368,7 +367,15 @@ function initTurnJs(startPage) {
   });
 
   bookActive = true;
-  updatePageInfo(startPage || 1);
+
+  if (startPage && startPage > 1) {
+    const totalPages = jQuery('#flipbook').turn('pages');
+    const target = Math.min(startPage, totalPages);
+    jQuery('#flipbook').turn('page', target);
+    updatePageInfo(target);
+  } else {
+    updatePageInfo(1);
+  }
 }
 
 function updatePageInfo(page) {
@@ -416,9 +423,30 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight') jQuery('#flipbook').turn('next');
 });
 
+// Touch swipe support for mobile
+let touchStartX = 0;
+let touchStartY = 0;
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].screenX;
+  touchStartY = e.changedTouches[0].screenY;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!bookActive) return;
+  const dx = e.changedTouches[0].screenX - touchStartX;
+  const dy = e.changedTouches[0].screenY - touchStartY;
+  // Only register horizontal swipes (not vertical scrolling)
+  if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+  if (dx < 0) jQuery('#flipbook').turn('next');
+  else jQuery('#flipbook').turn('previous');
+}, { passive: true });
+
 // Font size controls (EPUB only)
+let fontSizeChanging = false;
 async function changeFontSize(delta) {
+  if (fontSizeChanging) return;
   if (bookFormat !== 'epub' || !epubChapters) return;
+  fontSizeChanging = true;
 
   let wasPage = 2; // default to first content page (page 1 is cover)
   if (bookActive) {
@@ -440,6 +468,7 @@ async function changeFontSize(delta) {
   requestAnimationFrame(() => {
     const targetPage = Math.max(2, wasPage);
     initTurnJs(targetPage);
+    fontSizeChanging = false;
   });
 }
 
