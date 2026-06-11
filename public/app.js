@@ -230,18 +230,27 @@ function flattenToBlocks(html) {
 function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
 
-  // Create a hidden measuring container matching the page text style
+  // Create a hidden measuring container that matches the real DOM structure
+  // so CSS selectors like #flipbook .page .page-text-content p apply correctly
+  const measureWrapper = document.createElement('div');
+  measureWrapper.id = 'flipbook';
+  measureWrapper.style.cssText = 'position: absolute; visibility: hidden;';
+  const measurePage = document.createElement('div');
+  measurePage.className = 'page';
   const measurer = document.createElement('div');
   measurer.className = 'page-text-content';
   measurer.style.cssText = `
-    position: absolute; visibility: hidden; overflow: hidden;
+    overflow: hidden;
     width: ${width}px;
     font-size: ${fontSize}px;
     line-height: 1.7;
     font-family: Georgia, serif;
     padding: 0;
+    height: auto;
   `;
-  document.body.appendChild(measurer);
+  measurePage.appendChild(measurer);
+  measureWrapper.appendChild(measurePage);
+  document.body.appendChild(measureWrapper);
 
   for (let ci = 0; ci < chapters.length; ci++) {
     const chapter = chapters[ci];
@@ -293,7 +302,7 @@ function paginateChapters(chapters, width, height, fontSize) {
     }
   }
 
-  document.body.removeChild(measurer);
+  document.body.removeChild(measureWrapper);
   return pages;
 }
 
