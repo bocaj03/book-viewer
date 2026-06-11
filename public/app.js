@@ -59,7 +59,7 @@ async function init() {
       const fontControls = $('#font-controls');
       if (fontControls) fontControls.classList.remove('hidden');
 
-      buildEpubBook(epubChapters, title);
+      await buildEpubBook(epubChapters, title);
     } else {
       const pageUrls = data.pageUrls;
       if (!pageUrls || pageUrls.length === 0) {
@@ -142,7 +142,7 @@ function buildPdfBook(pageUrls, title) {
 }
 
 // ── EPUB book (HTML text pages) ──
-function buildEpubBook(chapters, title) {
+async function buildEpubBook(chapters, title) {
   if (bookActive) {
     jQuery('#flipbook').turn('destroy');
     bookActive = false;
@@ -162,7 +162,7 @@ function buildEpubBook(chapters, title) {
   const contentPadding = 36;
   const bottomExtra = 50;
   const usableHeight = pageH - contentPadding - contentPadding - bottomExtra;
-  const allPages = paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, currentFontSize);
+  const allPages = await paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, currentFontSize);
 
   totalContentPages = allPages.length;
   allPages.forEach((page, i) => {
@@ -226,8 +226,21 @@ function flattenToBlocks(html) {
   return blocks;
 }
 
+// Wait for all images inside an element to finish loading
+function waitForImages(el) {
+  const imgs = el.querySelectorAll('img');
+  if (imgs.length === 0) return Promise.resolve();
+  return Promise.all(Array.from(imgs).map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+  }));
+}
+
 // Paginate EPUB chapters into fixed-height pages
-function paginateChapters(chapters, width, height, fontSize) {
+async function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
 
   // Create a hidden measuring container with matching text styles
@@ -264,6 +277,8 @@ function paginateChapters(chapters, width, height, fontSize) {
       const blockHTML = blocks[bi];
 
       measurer.innerHTML = blockHTML;
+      // Wait for any images to load before measuring
+      await waitForImages(measurer);
       const elHeight = measurer.offsetHeight;
 
       // If this single element is taller than a page, add what we have and put it on its own page
@@ -402,7 +417,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Font size controls (EPUB only)
-function changeFontSize(delta) {
+async function changeFontSize(delta) {
   if (bookFormat !== 'epub' || !epubChapters) return;
 
   let wasPage = 2; // default to first content page (page 1 is cover)
@@ -419,7 +434,7 @@ function changeFontSize(delta) {
 
   // Rebuild the book with new font size
   const title = coverTitle.textContent;
-  buildEpubBook(epubChapters, title);
+  await buildEpubBook(epubChapters, title);
 
   // Re-init turn.js and restore page position
   requestAnimationFrame(() => {
