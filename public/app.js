@@ -230,24 +230,18 @@ function flattenToBlocks(html) {
 function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
 
-  // Create a hidden measuring container inside #flipbook so CSS selectors
-  // like #flipbook .page .page-text-content p apply correctly
-  const measurePage = document.createElement('div');
-  measurePage.className = 'page';
-  measurePage.style.cssText = 'position: absolute; visibility: hidden;';
+  // Create a hidden measuring container with matching text styles
   const measurer = document.createElement('div');
-  measurer.className = 'page-text-content';
+  measurer.className = 'page-text-measurer';
   measurer.style.cssText = `
-    overflow: hidden;
+    position: absolute; visibility: hidden; overflow: hidden;
     width: ${width}px;
     font-size: ${fontSize}px;
     line-height: 1.7;
     font-family: Georgia, serif;
     padding: 0;
-    height: auto;
   `;
-  measurePage.appendChild(measurer);
-  flipbookEl.appendChild(measurePage);
+  document.body.appendChild(measurer);
 
   for (let ci = 0; ci < chapters.length; ci++) {
     const chapter = chapters[ci];
@@ -299,7 +293,7 @@ function paginateChapters(chapters, width, height, fontSize) {
     }
   }
 
-  flipbookEl.removeChild(measurePage);
+  document.body.removeChild(measurer);
   return pages;
 }
 
@@ -338,10 +332,11 @@ function makePageDiv(extraClasses) {
   return div;
 }
 
-function initTurnJs() {
+function initTurnJs(startPage) {
   const { pageW, pageH, mobile } = window._turnConfig;
 
   jQuery('#flipbook').turn({
+    page: startPage || 1,
     width: mobile ? pageW : pageW * 2,
     height: pageH,
     autoCenter: true,
@@ -358,7 +353,7 @@ function initTurnJs() {
   });
 
   bookActive = true;
-  updatePageInfo(1);
+  updatePageInfo(startPage || 1);
 }
 
 function updatePageInfo(page) {
@@ -428,14 +423,8 @@ function changeFontSize(delta) {
 
   // Re-init turn.js and restore page position
   requestAnimationFrame(() => {
-    initTurnJs();
-    requestAnimationFrame(() => {
-      try {
-        const newTotal = jQuery('#flipbook').turn('pages');
-        const targetPage = Math.max(2, Math.min(wasPage, newTotal));
-        jQuery('#flipbook').turn('page', targetPage);
-      } catch(e) {}
-    });
+    const targetPage = Math.max(2, wasPage);
+    initTurnJs(targetPage);
   });
 }
 

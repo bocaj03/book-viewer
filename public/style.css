@@ -421,6 +421,58 @@ body {
   margin: 0.8em 0;
 }
 
+/* Pagination measurer — mirrors #flipbook .page .page-text-content styles */
+.page-text-measurer p {
+  margin-bottom: 0.6em;
+  text-align: justify;
+  text-indent: 1.5em;
+}
+
+.page-text-measurer p:first-child,
+.page-text-measurer h1 + p,
+.page-text-measurer h2 + p,
+.page-text-measurer h3 + p {
+  text-indent: 0;
+}
+
+.page-text-measurer h1 {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 0.4em 0 0.5em 0;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.page-text-measurer h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin: 0.3em 0 0.4em 0;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.page-text-measurer h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.3em 0 0.3em 0;
+  text-align: center;
+}
+
+.page-text-measurer blockquote {
+  margin: 0.5em 0;
+  padding-left: 1.2em;
+  border-left: 2px solid #c4a96a;
+  font-style: italic;
+}
+
+.page-text-measurer img {
+  display: block !important;
+  width: 90% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0.8em auto !important;
+}
+
 /* Controls bar */
 #controls-bar {
   flex-shrink: 0;
