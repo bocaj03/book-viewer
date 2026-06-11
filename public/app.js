@@ -230,13 +230,11 @@ function flattenToBlocks(html) {
 function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
 
-  // Create a hidden measuring container that matches the real DOM structure
-  // so CSS selectors like #flipbook .page .page-text-content p apply correctly
-  const measureWrapper = document.createElement('div');
-  measureWrapper.id = 'flipbook';
-  measureWrapper.style.cssText = 'position: absolute; visibility: hidden;';
+  // Create a hidden measuring container inside #flipbook so CSS selectors
+  // like #flipbook .page .page-text-content p apply correctly
   const measurePage = document.createElement('div');
   measurePage.className = 'page';
+  measurePage.style.cssText = 'position: absolute; visibility: hidden;';
   const measurer = document.createElement('div');
   measurer.className = 'page-text-content';
   measurer.style.cssText = `
@@ -249,8 +247,7 @@ function paginateChapters(chapters, width, height, fontSize) {
     height: auto;
   `;
   measurePage.appendChild(measurer);
-  measureWrapper.appendChild(measurePage);
-  document.body.appendChild(measureWrapper);
+  flipbookEl.appendChild(measurePage);
 
   for (let ci = 0; ci < chapters.length; ci++) {
     const chapter = chapters[ci];
@@ -302,7 +299,7 @@ function paginateChapters(chapters, width, height, fontSize) {
     }
   }
 
-  document.body.removeChild(measureWrapper);
+  flipbookEl.removeChild(measurePage);
   return pages;
 }
 
@@ -429,18 +426,17 @@ function changeFontSize(delta) {
   const title = coverTitle.textContent;
   buildEpubBook(epubChapters, title);
 
-  // Re-init turn.js with a delay to ensure DOM is ready
-  setTimeout(() => {
+  // Re-init turn.js and restore page position
+  requestAnimationFrame(() => {
     initTurnJs();
-    // Navigate back to where the user was (or close to it)
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       try {
         const newTotal = jQuery('#flipbook').turn('pages');
         const targetPage = Math.max(2, Math.min(wasPage, newTotal));
         jQuery('#flipbook').turn('page', targetPage);
       } catch(e) {}
-    }, 100);
-  }, 50);
+    });
+  });
 }
 
 // Expose globally for inline handlers
