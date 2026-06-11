@@ -158,9 +158,9 @@ function buildEpubBook(chapters, title) {
   flipbookEl.appendChild(makeCoverPage(title));
 
   // Paginate chapters into pages
-  // Padding: 36px top/sides, extra 30px bottom for page numbers
+  // Padding: 36px top/sides, extra bottom for page numbers + safety margin
   const contentPadding = 36;
-  const bottomExtra = 30;
+  const bottomExtra = 50;
   const usableHeight = pageH - contentPadding - contentPadding - bottomExtra;
   const allPages = paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, currentFontSize);
 
