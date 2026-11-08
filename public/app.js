@@ -81,7 +81,7 @@ function calcPageSize() {
   const vw = window.innerWidth;
   const mobile = isMobile();
 
-  const availH = vh - CONTROLS_HEIGHT;
+  const availH = vh - (immersive ? 0 : CONTROLS_HEIGHT);
   const availW = vw;
 
   let pageW, pageH;
@@ -421,19 +421,34 @@ nextBtn.addEventListener('click', () => {
 });
 
 // ── Full screen ──
+const nativeFullscreenSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+let immersive = false; // fallback mode for browsers without the Fullscreen API (iPhone Safari)
+
 function isFullscreen() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  return !!(document.fullscreenElement || document.webkitFullscreenElement) || immersive;
 }
 
 function toggleFullscreen() {
-  const el = document.documentElement;
-  if (!isFullscreen()) {
-    const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (req) req.call(el);
+  if (nativeFullscreenSupported) {
+    const el = document.documentElement;
+    if (!(document.fullscreenElement || document.webkitFullscreenElement)) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      Promise.resolve(req.call(el)).catch(() => setImmersive(!immersive));
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      exit.call(document);
+    }
   } else {
-    const exit = document.exitFullscreen || document.webkitExitFullscreen;
-    if (exit) exit.call(document);
+    setImmersive(!immersive);
   }
+}
+
+function setImmersive(on) {
+  immersive = on;
+  document.body.classList.toggle('immersive', on);
+  if (on) flashControls();
+  updateFullscreenBtn();
+  relayoutBook(true);
 }
 
 function updateFullscreenBtn() {
@@ -442,25 +457,33 @@ function updateFullscreenBtn() {
   fullscreenBtn.title = fs ? 'Exit full screen' : 'Full screen';
 }
 
-// iOS Safari has no Fullscreen API for non-video elements; hide the button there.
-if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
-  fullscreenBtn.style.display = 'none';
-}
-
 fullscreenBtn.addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', () => { updateFullscreenBtn(); relayoutBook(); });
 document.addEventListener('webkitfullscreenchange', () => { updateFullscreenBtn(); relayoutBook(); });
 
+// In immersive mode the controls fade out; tapping outside the pages shows them for a few seconds
+let controlsFlashTimer = null;
+function flashControls() {
+  document.body.classList.add('show-controls');
+  clearTimeout(controlsFlashTimer);
+  controlsFlashTimer = setTimeout(() => document.body.classList.remove('show-controls'), 3000);
+}
+document.addEventListener('click', (e) => {
+  if (!immersive) return;
+  if (e.target.closest('#flipbook')) return;
+  flashControls();
+});
+
 // Re-paginate the book when the viewport changes size, keeping the reader's place.
 let relayoutTimer = null;
 let lastLayoutSize = { w: window.innerWidth, h: window.innerHeight };
-function relayoutBook() {
+function relayoutBook(force) {
   clearTimeout(relayoutTimer);
   relayoutTimer = setTimeout(async () => {
     // Ignore small height jitter (mobile address bar showing/hiding)
     const dw = Math.abs(window.innerWidth - lastLayoutSize.w);
     const dh = Math.abs(window.innerHeight - lastLayoutSize.h);
-    if (dw === 0 && dh < 120) return;
+    if (!force && dw === 0 && dh < 120) return;
     lastLayoutSize = { w: window.innerWidth, h: window.innerHeight };
 
     const wasOpen = bookActive;
@@ -486,7 +509,7 @@ function relayoutBook() {
     }
   }, 250);
 }
-window.addEventListener('resize', relayoutBook);
+window.addEventListener('resize', () => relayoutBook());
 
 document.addEventListener('keydown', (e) => {
   if (!bookActive || bookScreen.classList.contains('hidden')) return;

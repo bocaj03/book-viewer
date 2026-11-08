@@ -524,3 +524,18 @@ body {
     padding: 24px 20px 40px;
   }
 }
+
+/* Immersive fallback (no Fullscreen API, e.g. iPhone Safari) */
+body.immersive #controls-bar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 6px 0 10px;
+  background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+body.immersive #controls-bar:hover,
+body.immersive #controls-bar:focus-within,
+body.immersive.show-controls #controls-bar {
+  opacity: 1;
+}
