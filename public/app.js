@@ -7,6 +7,7 @@ const closedBook = $('#closed-book');
 const flipbookArea = $('#flipbook-area');
 const flipbookEl = $('#flipbook');
 const controlsBar = $('#controls-bar');
+const firstBtn = $('#first-btn');
 const prevBtn = $('#prev-btn');
 const nextBtn = $('#next-btn');
 const pageInfo = $('#page-info');
@@ -398,6 +399,14 @@ closedBook.addEventListener('click', () => {
 });
 
 // Navigation
+function goToFirstPage() {
+  if (!bookActive) return;
+  // Page 1 is the cover; page 2 is the first page of text
+  jQuery('#flipbook').turn('page', 2);
+}
+
+firstBtn.addEventListener('click', goToFirstPage);
+
 prevBtn.addEventListener('click', () => {
   if (bookActive) jQuery('#flipbook').turn('previous');
 });
@@ -414,6 +423,7 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
+  if (e.key === 'Home') goToFirstPage();
   if (e.key === 'ArrowLeft') jQuery('#flipbook').turn('previous');
   if (e.key === 'ArrowRight') jQuery('#flipbook').turn('next');
 });
