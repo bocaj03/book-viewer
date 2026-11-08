@@ -11,6 +11,9 @@ const firstBtn = $('#first-btn');
 const prevBtn = $('#prev-btn');
 const nextBtn = $('#next-btn');
 const fullscreenBtn = $('#fullscreen-btn');
+const contentsBtn = $('#contents-btn');
+const contentsMenu = $('#contents-menu');
+const contentsList = $('#contents-list');
 const pageInfo = $('#page-info');
 const coverTitle = $('#cover-title');
 const loadingText = $('#loading-text');
@@ -22,6 +25,7 @@ let totalContentPages = 0;
 let bookFormat = 'pdf';
 let epubChapters = null;
 let pdfPageUrls = null;
+let chapterStarts = []; // [{title, page}] where page is the turn.js page number
 let bookTitle = '';
 const PAGE_RATIO = 6 / 9;
 const CONTROLS_HEIGHT = 70;
@@ -128,6 +132,8 @@ function buildPdfBook(pageUrls, title) {
 
   // Content pages
   totalContentPages = pageUrls.length;
+  chapterStarts = [];
+  buildContentsMenu();
   pageUrls.forEach((url, i) => {
     const div = makePageDiv('');
     div.innerHTML = `<img class="page-image" src="${escapeAttr(url)}" alt="Page ${i + 1}" loading="lazy" />`;
@@ -170,6 +176,7 @@ async function buildEpubBook(chapters, title) {
   const allPages = await paginateChapters(chapters, pageW - contentPadding * 2, usableHeight, fontSize);
 
   totalContentPages = allPages.length;
+  buildContentsMenu();
   allPages.forEach((page, i) => {
     const div = makePageDiv('');
     const content = document.createElement('div');
@@ -247,6 +254,7 @@ function waitForImages(el) {
 // Paginate EPUB chapters into fixed-height pages
 async function paginateChapters(chapters, width, height, fontSize) {
   const pages = [];
+  const starts = [];
 
   // Create a hidden measuring container with matching text styles
   const measurer = document.createElement('div');
@@ -277,6 +285,8 @@ async function paginateChapters(chapters, width, height, fontSize) {
         pages.push({ html: '' });
       }
     }
+    // Content page index pages.length is 0-based; cover is turn page 1, so this chapter opens at pages.length + 2
+    starts.push({ title: chapter.title || ('Chapter ' + (ci + 1)), page: pages.length + 2 });
 
     for (let bi = 0; bi < blocks.length; bi++) {
       const blockHTML = blocks[bi];
@@ -314,6 +324,7 @@ async function paginateChapters(chapters, width, height, fontSize) {
   }
 
   document.body.removeChild(measurer);
+  chapterStarts = starts;
   return pages;
 }
 
@@ -424,6 +435,49 @@ nextBtn.addEventListener('click', () => {
   if (bookActive) jQuery('#flipbook').turn('next');
 });
 
+// ── Contents menu ──
+function buildContentsMenu() {
+  contentsList.innerHTML = '';
+  if (!chapterStarts.length) {
+    contentsBtn.style.display = 'none';
+    return;
+  }
+  contentsBtn.style.display = '';
+  chapterStarts.forEach(ch => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'contents-item';
+    btn.innerHTML = `<span class="contents-title">${escapeHTML(ch.title)}</span><span class="contents-page">${ch.page - 1}</span>`;
+    btn.addEventListener('click', () => {
+      closeContents();
+      if (bookActive) jQuery('#flipbook').turn('page', ch.page);
+    });
+    li.appendChild(btn);
+    contentsList.appendChild(li);
+  });
+}
+
+function openContents() {
+  if (!bookActive) return;
+  // Mark the chapter the reader is currently in
+  const cur = jQuery('#flipbook').turn('page');
+  let active = -1;
+  chapterStarts.forEach((ch, i) => { if (ch.page <= cur) active = i; });
+  contentsList.querySelectorAll('.contents-item').forEach((el, i) => el.classList.toggle('active', i === active));
+  contentsMenu.classList.remove('hidden');
+  contentsBtn.classList.add('open');
+}
+function closeContents() {
+  contentsMenu.classList.add('hidden');
+  contentsBtn.classList.remove('open');
+}
+contentsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (contentsMenu.classList.contains('hidden')) openContents(); else closeContents();
+});
+contentsMenu.addEventListener('click', (e) => { if (e.target === contentsMenu) closeContents(); });
+
 // ── Full screen ──
 const nativeFullscreenSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
 let immersive = false; // fallback mode for browsers without the Fullscreen API (iPhone Safari)
@@ -523,7 +577,9 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
+  if (e.key === 'Escape' && !contentsMenu.classList.contains('hidden')) { closeContents(); return; }
   if (e.key === 'Home') goToFirstPage();
+  if (e.key === 'c' || e.key === 'C') { if (contentsMenu.classList.contains('hidden')) openContents(); else closeContents(); }
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   if (e.key === 'ArrowLeft') jQuery('#flipbook').turn('previous');
   if (e.key === 'ArrowRight') jQuery('#flipbook').turn('next');

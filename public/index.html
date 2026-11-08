@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Black Orchid">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=5">
 </head>
 <body>
   <div id="app">
@@ -52,8 +52,16 @@
         <div id="flipbook"></div>
       </div>
 
+      <div id="contents-menu" class="hidden">
+        <div id="contents-panel">
+          <h3>Contents</h3>
+          <ul id="contents-list"></ul>
+        </div>
+      </div>
+
       <div id="controls-bar" class="hidden">
         <div id="controls">
+          <button id="contents-btn" title="Contents">&#9776;</button>
           <button id="first-btn" title="First page">&#8676;</button>
           <button id="prev-btn" title="Previous page">&larr;</button>
           <span id="page-info">Cover</span>
@@ -66,6 +74,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/turn.js/3/turn.min.js"></script>
-  <script src="/app.js?v=4"></script>
+  <script src="/app.js?v=5"></script>
 </body>
 </html>
