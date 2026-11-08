@@ -10,6 +10,7 @@ const controlsBar = $('#controls-bar');
 const firstBtn = $('#first-btn');
 const prevBtn = $('#prev-btn');
 const nextBtn = $('#next-btn');
+const fullscreenBtn = $('#fullscreen-btn');
 const pageInfo = $('#page-info');
 const coverTitle = $('#cover-title');
 const loadingText = $('#loading-text');
@@ -20,6 +21,8 @@ let coverImageSrc = null;
 let totalContentPages = 0;
 let bookFormat = 'pdf';
 let epubChapters = null;
+let pdfPageUrls = null;
+let bookTitle = '';
 const PAGE_RATIO = 6 / 9;
 const CONTROLS_HEIGHT = 70;
 
@@ -41,6 +44,7 @@ async function init() {
     coverImageSrc = data.coverUrl || null;
     bookFormat = data.format || 'pdf';
     const title = data.title;
+    bookTitle = title;
 
     coverTitle.textContent = title;
 
@@ -57,6 +61,7 @@ async function init() {
       await buildEpubBook(epubChapters, title);
     } else {
       const pageUrls = data.pageUrls;
+      pdfPageUrls = pageUrls;
       if (!pageUrls || pageUrls.length === 0) {
         showScreen('no-book');
         return;
@@ -415,6 +420,74 @@ nextBtn.addEventListener('click', () => {
   if (bookActive) jQuery('#flipbook').turn('next');
 });
 
+// ── Full screen ──
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!isFullscreen()) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el);
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+  }
+}
+
+function updateFullscreenBtn() {
+  const fs = isFullscreen();
+  fullscreenBtn.innerHTML = fs ? '&#x2716;' : '&#x26F6;';
+  fullscreenBtn.title = fs ? 'Exit full screen' : 'Full screen';
+}
+
+// iOS Safari has no Fullscreen API for non-video elements; hide the button there.
+if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+  fullscreenBtn.style.display = 'none';
+}
+
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => { updateFullscreenBtn(); relayoutBook(); });
+document.addEventListener('webkitfullscreenchange', () => { updateFullscreenBtn(); relayoutBook(); });
+
+// Re-paginate the book when the viewport changes size, keeping the reader's place.
+let relayoutTimer = null;
+let lastLayoutSize = { w: window.innerWidth, h: window.innerHeight };
+function relayoutBook() {
+  clearTimeout(relayoutTimer);
+  relayoutTimer = setTimeout(async () => {
+    // Ignore small height jitter (mobile address bar showing/hiding)
+    const dw = Math.abs(window.innerWidth - lastLayoutSize.w);
+    const dh = Math.abs(window.innerHeight - lastLayoutSize.h);
+    if (dw === 0 && dh < 120) return;
+    lastLayoutSize = { w: window.innerWidth, h: window.innerHeight };
+
+    const wasOpen = bookActive;
+    let fraction = 0;
+    if (wasOpen) {
+      const cur = jQuery('#flipbook').turn('page');
+      const total = jQuery('#flipbook').turn('pages');
+      fraction = total > 2 ? (cur - 1) / (total - 2) : 0;
+    }
+
+    if (bookFormat === 'epub' && epubChapters) {
+      await buildEpubBook(epubChapters, bookTitle);
+    } else if (pdfPageUrls) {
+      buildPdfBook(pdfPageUrls, bookTitle);
+    } else {
+      return;
+    }
+
+    if (wasOpen) {
+      const total = flipbookEl.children.length;
+      const target = Math.max(1, Math.min(total, Math.round(1 + fraction * (total - 2))));
+      requestAnimationFrame(() => initTurnJs(target));
+    }
+  }, 250);
+}
+window.addEventListener('resize', relayoutBook);
+
 document.addEventListener('keydown', (e) => {
   if (!bookActive || bookScreen.classList.contains('hidden')) return;
   if (!closedBookOverlay.classList.contains('hidden')) {
@@ -424,6 +497,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Home') goToFirstPage();
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   if (e.key === 'ArrowLeft') jQuery('#flipbook').turn('previous');
   if (e.key === 'ArrowRight') jQuery('#flipbook').turn('next');
 });

@@ -483,9 +483,15 @@ body {
   justify-content: center;
 }
 
-#first-btn {
+#first-btn,
+#fullscreen-btn {
   font-size: 20px;
   opacity: 0.75;
+}
+
+:fullscreen #app,
+:-webkit-full-screen #app {
+  background: #1a1a1a;
 }
 
 #controls button:hover {
