@@ -1,0 +1,9 @@
+{
+  "name": "The Black Orchid Affair",
+  "short_name": "Black Orchid",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [{ "src": "/icon.png", "sizes": "512x512", "type": "image/png" }]
+}

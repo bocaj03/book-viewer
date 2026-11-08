@@ -86,7 +86,11 @@ function calcPageSize() {
 
   let pageW, pageH;
 
-  if (mobile) {
+  if (mobile && immersive) {
+    // Fill the whole screen; ignore the print page ratio
+    pageW = availW;
+    pageH = availH;
+  } else if (mobile) {
     pageW = availW - 16;
     pageH = Math.floor(pageW / PAGE_RATIO);
     if (pageH > availH - 8) {
