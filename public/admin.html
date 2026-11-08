@@ -280,6 +280,28 @@
       return await res.json();
     }
 
+    // ── Image downscaling (keeps the reader fast) ──
+    // Returns {blob, type, ext}. Large PNG plates become ~80 KB JPEGs instead of ~500 KB PNGs.
+    async function shrinkImage(blob, maxW, maxH, quality) {
+      try {
+        const bitmap = await createImageBitmap(blob);
+        const scale = Math.min(1, maxW / bitmap.width, maxH / bitmap.height);
+        const w = Math.round(bitmap.width * scale);
+        const h = Math.round(bitmap.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        const out = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (out && out.size < blob.size) return { blob: out, type: 'image/jpeg', ext: 'jpg', w, h };
+      } catch (e) {
+        console.warn('Could not shrink image, uploading original', e);
+      }
+      return { blob, type: blob.type || 'image/png', ext: null, w: null, h: null };
+    }
+
     // ── PDF processing ──
     async function renderPDFPages(file) {
       const arrayBuffer = await file.arrayBuffer();
@@ -337,6 +359,7 @@
       // Extract and upload all images from the EPUB
       // Map: original relative path -> uploaded Blob URL
       const imageUrlMap = {};
+      const imageSizeMap = {};
       showStatus('Extracting images...', 'loading');
 
       let imageCount = 0;
@@ -350,11 +373,13 @@
         imageCount++;
         showStatus(`Uploading image ${imageCount}...`, 'loading');
 
-        const imageData = await imageFile.async('blob');
-        const ext = info.href.split('.').pop() || 'png';
+        const rawData = await imageFile.async('blob');
+        const shrunk = await shrinkImage(rawData, 1000, 1000, 0.85);
+        const ext = shrunk.ext || info.href.split('.').pop() || 'png';
         const filename = `img-${String(imageCount).padStart(3, '0')}.${ext}`;
 
-        const result = await uploadFile(filename, imageData, password, info.mediaType);
+        const result = await uploadFile(filename, shrunk.blob, password, shrunk.type);
+        if (shrunk.w) imageSizeMap[result.url] = { w: shrunk.w, h: shrunk.h };
 
         // Map all possible ways the image might be referenced
         imageUrlMap[info.href] = result.url;
@@ -372,6 +397,7 @@
 
       for (const itemRef of spineItems) {
         const idref = itemRef.getAttribute('idref');
+        if (itemRef.getAttribute('linear') === 'no') continue; // e.g. the EPUB's own cover page
         const info = manifestMap[idref];
         if (!info) continue;
 
@@ -402,11 +428,14 @@
               }
             }
           }
-          // Remove inline sizing so CSS controls the display
+          // Remove inline sizing so CSS controls the display, but keep intrinsic
+          // dimensions so the reader can lay out pages before the image downloads
           img.removeAttribute('width');
           img.removeAttribute('height');
           img.style.removeProperty('width');
           img.style.removeProperty('height');
+          const size = imageSizeMap[img.getAttribute('src')];
+          if (size) { img.setAttribute('width', size.w); img.setAttribute('height', size.h); }
         });
 
         // Also clean up parent divs with inline styles that constrain image size
@@ -465,7 +494,9 @@
         // Upload cover if provided
         if (coverFile) {
           showStatus('Uploading cover...', 'loading');
-          const coverResult = await uploadFile('cover-' + coverFile.name, coverFile, password, coverFile.type);
+          const smallCover = await shrinkImage(coverFile, 1200, 1600, 0.9);
+          const coverName = smallCover.ext ? 'cover.' + smallCover.ext : 'cover-' + coverFile.name;
+          const coverResult = await uploadFile(coverName, smallCover.blob, password, smallCover.type);
           coverUrl = coverResult.url;
         }
 

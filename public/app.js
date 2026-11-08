@@ -269,11 +269,25 @@ async function paginateChapters(chapters, width, height, fontSize) {
   `;
   document.body.appendChild(measurer);
 
+  // Warm the image cache in parallel so measuring never waits on a download
+  const imgSrcs = new Set();
+  chapters.forEach(ch => (ch.html.match(/<img[^>]+src="([^"]+)"/g) || []).forEach(m => {
+    const src = m.match(/src="([^"]+)"/); if (src) imgSrcs.add(src[1]);
+  }));
+  await Promise.all(Array.from(imgSrcs).map(src => new Promise(resolve => {
+    const im = new Image(); im.onload = im.onerror = resolve; im.src = src;
+  })));
+
   for (let ci = 0; ci < chapters.length; ci++) {
     const chapter = chapters[ci];
 
     // Flatten chapter HTML into individual block elements
     const blocks = flattenToBlocks(chapter.html);
+
+    // Measure every block of the chapter in one layout pass
+    measurer.innerHTML = blocks.map(b => '<div class="measure-slot">' + b + '</div>').join('');
+    await waitForImages(measurer);
+    const heights = Array.from(measurer.children).map(el => el.offsetHeight);
 
     let currentPageHTML = '';
     let currentHeight = 0;
@@ -286,15 +300,11 @@ async function paginateChapters(chapters, width, height, fontSize) {
       }
     }
     // Content page index pages.length is 0-based; cover is turn page 1, so this chapter opens at pages.length + 2
-    starts.push({ title: chapter.title || ('Chapter ' + (ci + 1)), page: pages.length + 2 });
+    starts.push({ title: chapter.title || '', page: pages.length + 2 });
 
     for (let bi = 0; bi < blocks.length; bi++) {
       const blockHTML = blocks[bi];
-
-      measurer.innerHTML = blockHTML;
-      // Wait for any images to load before measuring
-      await waitForImages(measurer);
-      const elHeight = measurer.offsetHeight;
+      const elHeight = heights[bi];
 
       // If this single element is taller than a page, add what we have and put it on its own page
       if (elHeight > height) {
@@ -443,7 +453,7 @@ function buildContentsMenu() {
     return;
   }
   contentsBtn.style.display = '';
-  chapterStarts.forEach(ch => {
+  chapterStarts.filter(ch => ch.title && !/^Chapter \d+$/.test(ch.title) && ch.title !== bookTitle).forEach(ch => {
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.type = 'button';
